@@ -5,7 +5,10 @@
  */
 package testmulticastclient;
 
+import java.io.IOException;
 import java.net.Socket;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -19,6 +22,9 @@ public class ClientGUI extends javax.swing.JFrame {
     public ClientGUI(ConnectionManager conManagerVal) {
         conManager= conManagerVal;
         initComponents();
+        messageTextArea.setEditable(false);
+        new ConnectionStatusUpdateder().start();
+        
     }
 
     /**
@@ -50,8 +56,18 @@ public class ClientGUI extends javax.swing.JFrame {
         messageTextEdit.setToolTipText("Enter message here");
 
         sendMessageButton.setText("Send");
+        sendMessageButton.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                sendMessageButtonMouseClicked(evt);
+            }
+        });
 
         disconnectButton.setText("Disconnect");
+        disconnectButton.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                disconnectButtonMouseClicked(evt);
+            }
+        });
 
         jLabel2.setText("Connection Status :");
 
@@ -105,6 +121,28 @@ public class ClientGUI extends javax.swing.JFrame {
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
+    private void sendMessageButtonMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_sendMessageButtonMouseClicked
+        // TODO add your handling code here:
+        System.out.println("Sent button clicked");
+        try 
+        {
+            conManager.sendMessage(messageTextEdit.getText());
+        } 
+        catch (IOException ex) 
+        {
+            Logger.getLogger(ClientGUI.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }//GEN-LAST:event_sendMessageButtonMouseClicked
+
+    private void disconnectButtonMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_disconnectButtonMouseClicked
+        // TODO add your handling code here:
+        System.out.println("Disconnect button clicked");
+    }//GEN-LAST:event_disconnectButtonMouseClicked
+
+    public void addTextToTextArea(String text)
+    {
+        messageTextArea.setText(messageTextArea.getText()+"\n\n"+text);
+    }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JLabel connectionStatusLabel;
@@ -116,4 +154,27 @@ public class ClientGUI extends javax.swing.JFrame {
     private javax.swing.JButton sendMessageButton;
     // End of variables declaration//GEN-END:variables
     private ConnectionManager conManager; // The socket on this the client will comminicate with server
+    class ConnectionStatusUpdateder extends Thread
+    {
+        @Override
+        public void run()
+        {
+            while(true)
+            {
+                if(conManager.connected)
+                {
+                    connectionStatusLabel.setText("Connected");
+                }
+                else
+                {
+                    connectionStatusLabel.setText("Disconnected");
+                }
+                try {
+                    sleep(5000);
+                } catch (InterruptedException ex) {
+                    Logger.getLogger(ClientGUI.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+        }
+    }
 }

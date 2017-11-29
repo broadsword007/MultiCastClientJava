@@ -17,6 +17,7 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Scanner;
+import java.util.Vector;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,26 +33,30 @@ public class TestMultiCastClient {
     public static void main(String[] args) throws SocketException, UnknownHostException, IOException {
         // TODO code application logic here
         ConnectionManager connectionManager = new ConnectionManager();
-        connectionManager.start();
         // Now load the UI and other stuff
         // The UI will check the connectionManager.connected and allow the user to send messages
-        // if connected is true. Otherwise, it will hold untill connected is established again
-        ClientHandler mainHandler = new ClientHandler(connectionManager);
-        mainHandler.start();
+        // if connected is true. Otherwise, it will hold untill connection is established again
+        
         java.awt.EventQueue.invokeLater(new Runnable() 
         {
             public void run() {
-                new ClientGUI(connectionManager).setVisible(true);
+                ClientGUI guiHandler = new ClientGUI(connectionManager);
+                guiHandler.setVisible(true);
+                connectionManager.guiHandler= guiHandler;
             }
         });
+        connectionManager.start();
     }
     
 }
 class ConnectionManager extends Thread
 {
-    public boolean connected;
+    public volatile boolean connected;
     public Socket connectionSocket;
     public ServerSocket serverSocket;
+    private Vector incomingMessages;
+    public boolean hasIncomingMessages;
+    public ClientGUI guiHandler;
     private void startServer() throws IOException
     {
         serverSocket = new ServerSocket(10001);
@@ -93,8 +98,11 @@ class ConnectionManager extends Thread
     {
         startServer();
         ServerWaiter w = new ServerWaiter();
+        MessageReciever messageReciever = new MessageReciever(this);
         w.start();
+        messageReciever.start();
         connected=false ;
+        hasIncomingMessages=false ;
     }
     @Override
     public void run()
@@ -139,57 +147,50 @@ class ConnectionManager extends Thread
             }
         }
     }
-}
-class ClientHandler extends Thread // this will manage both UI and interaction between this client
-        // (currently server and target client (Actual server))
-{
-    ConnectionManager connectionMan;
-    ClientHandler(ConnectionManager connectionManVal)
+    public void sendMessage(String message) throws IOException
     {
-        connectionMan= connectionManVal;
-    }
-    @Override
-    public void run()
-    {
-        while(!connectionMan.connected)
+        // write code for sending a message to the server
+        Scanner inputScanner= new Scanner(System.in);
+        DataInputStream in = new DataInputStream(connectionSocket.getInputStream());
+        DataOutputStream out= new DataOutputStream(connectionSocket.getOutputStream());
+        if(guiHandler!=null)
         {
-            //System.out.println("Running and "+connectionMan.connected);
+            out.writeUTF(message);
+            System.out.println("Message sent!");
         }
-        System.out.println("Running and "+connectionMan.connected);
-        try 
+    }
+    class MessageReciever extends Thread
+    {
+        ConnectionManager connectionMan;
+        MessageReciever(ConnectionManager connectionManVal)
         {
-            System.out.println("Just connected to " + connectionMan.connectionSocket.getRemoteSocketAddress());
-            Scanner inputScanner= new Scanner(System.in);
-            DataInputStream in = new DataInputStream(connectionMan.connectionSocket.getInputStream());
-            DataOutputStream out= new DataOutputStream(connectionMan.connectionSocket.getOutputStream());
-            while(true) 
+            connectionMan= connectionManVal;
+        }
+        @Override
+        public void run()
+        {
+            while(true)
             {
-                try 
+                // wait for messages and once a message is recieved add it to incoming message Vector
+                if(connected)
                 {
-                    String clientResponse= in.readUTF();
-                    System.out.println("Server says : "+clientResponse);
-                    if(clientResponse.toLowerCase().contains("bye"))
+                    try 
                     {
-                        connectionMan.connectionSocket.close();
-                        break;
-                    }
-                    else
+                        DataInputStream in = new DataInputStream(connectionMan.connectionSocket.getInputStream());
+                        String clientResponse= in.readUTF();
+                        System.out.println("Message recieved");
+                        // now output this to the textArea
+                        if(guiHandler!=null)
+                        {
+                            guiHandler.addTextToTextArea(clientResponse);
+                        }
+                    } 
+                    catch (IOException ex) 
                     {
-                        System.out.print("Please enter a reply for the server : ");
-                        String serverResponse= inputScanner.nextLine();
-                        out.writeUTF(serverResponse);
+                        Logger.getLogger(ConnectionManager.class.getName()).log(Level.SEVERE, null, ex);
                     }
-                } 
-                catch (SocketTimeoutException s) 
-                {
-                   System.out.println("Socket timed out!");
-                   break;
                 }
             }
-        } 
-        catch (IOException ex) 
-        {
-            Logger.getLogger(ClientHandler.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 }
